@@ -37,8 +37,12 @@ public class NPCInteraction : MonoBehaviour
                 dialogueManager.OpenDialogue(dialogueMessage);
 
                 if (!hasGivenKeyword)
-                {
-                    keywordManager.AddKeyword(keywordToGive, keywordType);
+                {   
+                    var master = keywordManager.GetMasterKeywordByName(keywordToGive);
+                    if (master != null)
+                        keywordManager.AddKeyword(master.serverId, master.keywordName, master.keywordType);
+                    else
+                        keywordManager.AddKeyword(0, keywordToGive, keywordType);
                     hasGivenKeyword = true;
                 }
             }

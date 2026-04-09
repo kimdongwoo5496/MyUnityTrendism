@@ -32,8 +32,14 @@ public class ObjectInteraction : MonoBehaviour
 
             if (!hasGivenKeyword)
             {
-                keywordManager.AddKeyword(keywordToGive, keywordType);
-                hasGivenKeyword = true;
+                /*KeywordManager.Instance.AddKeyword(0, "키워드이름", KeywordType.Base);*/
+                var master = keywordManager.GetMasterKeywordByName(keywordToGive);
+                if (master != null)
+                    keywordManager.AddKeyword(master.serverId, master.keywordName, master.keywordType);
+                else
+                    keywordManager.AddKeyword(0, keywordToGive, keywordType);
+
+            hasGivenKeyword = true;
             }
         }
     }

@@ -7,8 +7,9 @@ using UnityEngine.Networking;
 public class ApiManager : MonoBehaviour
 {
     public static ApiManager Instance;
+    public bool isServerConnected = false;
 
-    [SerializeField] private string baseUrl = "https://unfocusedly-pleurocarpous-gina.ngrok-free.dev/";
+    [SerializeField] private string baseUrl = "https://unfocusedly-pleurocarpous-gina.ngrok-free.dev";
 
     private void Awake()
     {
@@ -20,6 +21,23 @@ public class ApiManager : MonoBehaviour
         else
         {
             Destroy(gameObject);
+        }
+    }
+
+    IEnumerator Start()
+    {
+        yield return StartCoroutine(CheckServerConnection());
+    }
+
+    IEnumerator CheckServerConnection()
+    {
+        using (UnityWebRequest req = UnityWebRequest.Get(baseUrl + ""))
+        {
+            req.timeout = 3;
+            req.SetRequestHeader("ngrok-skip-browser-warning", "true");
+            yield return req.SendWebRequest();
+            isServerConnected = req.result == UnityWebRequest.Result.Success;
+            Debug.Log(isServerConnected ? "✅ 서버 연결됨" : "⚠️ 오프라인 모드");
         }
     }
 
