@@ -916,7 +916,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1349634032}
   m_HandleRect: {fileID: 1349634031}
   m_Direction: 2
-  m_Value: 1
+  m_Value: 0
   m_Size: 1
   m_NumberOfSteps: 0
   m_OnValueChanged:
@@ -7360,7 +7360,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1893815975}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ee7cd296bbd1a974dbc74c8c03263edb, type: 3}
   m_Name: 
@@ -7377,6 +7377,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fcef260336f5db74ea175a81d79d45a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  isServerConnected: 0
   baseUrl: https://unfocusedly-pleurocarpous-gina.ngrok-free.dev/
 --- !u!4 &1893815978
 Transform:

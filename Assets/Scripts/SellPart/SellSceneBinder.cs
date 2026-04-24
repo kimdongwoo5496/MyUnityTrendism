@@ -21,6 +21,12 @@ public class SellSceneBinder : MonoBehaviour
     public TextMeshProUGUI logText;
     public TextMeshProUGUI summaryText;
 
+    [Header("홍보 패널 UI")]
+    public PromotionPanelUI promotionPanelUI;
+
+    [Header("정산 패널 UI")]
+    public SettlementPanelUI settlementPanelUI;
+
     [Header("버튼들")]
     public Button sellButton;
     public Button discountSellButton;
@@ -46,6 +52,8 @@ public class SellSceneBinder : MonoBehaviour
         sellManager.trendSlider = trendSlider;
         sellManager.logText = logText;
         sellManager.summaryText = summaryText;
+        sellManager.promotionPanelUI = promotionPanelUI;
+        sellManager.settlementPanelUI = settlementPanelUI;
 
         BindButtons(sellManager);
         sellManager.OnEnterSellScene();
@@ -75,6 +83,12 @@ public class SellSceneBinder : MonoBehaviour
         {
             backToCraftButton.onClick.RemoveAllListeners();
             backToCraftButton.onClick.AddListener(sellManager.GoBackToCraftScene);
+        }
+
+        if (promotionPanelUI != null && promotionPanelUI.promoteButton != null)
+        {
+            promotionPanelUI.promoteButton.onClick.RemoveAllListeners();
+            promotionPanelUI.promoteButton.onClick.AddListener(sellManager.OnClickPromote);
         }
     }
 }

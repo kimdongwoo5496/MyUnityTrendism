@@ -43,11 +43,24 @@ public class SellManager : MonoBehaviour
     public int totalDiscountSales = 0;
     public int totalSoldCount = 0;
 
+    [Header("고정 비용")]
+    public int materialCost = 100;
+    public int rentCost = 80;
+    public int manageCost = 40;
+
+    [Header("홍보 정산 데이터")]
+    public int totalPromotionCost = 0;
+
     [Header("판매 로그 데이터")]
     public List<string> sellLogs = new List<string>();
 
     [Header("이미 반영한 제작 결과 개수")]
     public int processedCraftedItemCount = 0;
+
+     [HideInInspector] 
+     public PromotionPanelUI promotionPanelUI;
+
+    [HideInInspector] public SettlementPanelUI settlementPanelUI; 
 
     private void Awake()
     {
@@ -154,20 +167,96 @@ public class SellManager : MonoBehaviour
         if (item == null || item.craftedItem == null)
             return 0;
 
-        float multiplier = 0.5f + (item.trendValue / 100f);
-        return Mathf.RoundToInt(item.craftedItem.finalPrice * multiplier);
-    }
+        float trendMultiplier = 0.7f + (item.trendValue / 100f); 
+        float lifePenalty = 1f;
 
+        if (item.lifeTurns <= 2)
+            lifePenalty = 0.75f;
+        else if (item.lifeTurns <= 4)
+            lifePenalty = 0.9f;
+
+        float finalValue = item.craftedItem.finalPrice * trendMultiplier * lifePenalty;
+        return Mathf.Max(1, Mathf.RoundToInt(finalValue));
+    }
     int CalculateDiscountPrice(SellableItemData item)
     {
         int normalPrice = CalculateCurrentPrice(item);
         return Mathf.Max(1, Mathf.RoundToInt(normalPrice * 0.7f));
     }
 
+    float CalculatePromotionBoost(string background, string filter, string tag1, string tag2, string tag3)
+    {
+        float boost = 5f;
+
+        // 배경 보너스
+        if (background == "고급 천")
+            boost += 2f;
+       else if (background == "꽃 장식")
+            boost += 3f;
+        else if (background == "마법 조명")
+            boost += 4f;
+
+        // 필터 보너스
+        if (filter == "빈티지")
+            boost += 3f;
+        else if (filter == "화사함")
+            boost += 2f;
+        else if (filter == "시크함")
+            boost += 2.5f;
+
+        // 해시태그 기본 보너스
+        boost += 1.5f;
+
+        // 중복 태그 패널티
+        if (tag1 == tag2 || tag2 == tag3 || tag1 == tag3)
+            boost -= 2f;
+
+        // 선택된 아이템 이름과 태그/필터가 맞으면 추가 보너스
+        if (selectedItem != null && selectedItem.craftedItem != null)
+        {
+            string itemName = selectedItem.craftedItem.itemName;
+
+            if (itemName.Contains("감성"))
+            {
+                if (tag1 == "감성" || tag2 == "감성" || tag3 == "감성")
+                    boost += 3f;
+            }
+
+            if (itemName.Contains("럭셔리"))
+            {
+                if (tag1 == "럭셔리" || tag2 == "럭셔리" || tag3 == "럭셔리")
+                    boost += 3f;
+            }
+
+            if (itemName.Contains("빈티지"))
+            {
+                if (filter == "빈티지")
+                    boost += 3f;
+            }
+        }
+
+        // 같은 아이템을 반복 홍보할수록 효율 감소
+        if (selectedItem != null)
+        {
+            boost -= selectedItem.promotionCount * 0.7f;
+        }
+
+        if (selectedItem != null)
+        {
+            if (selectedItem.lifeTurns <= 2)
+                boost -= 3f;
+            else if (selectedItem.lifeTurns <= 4)
+                boost -= 1.5f;
+        }
+
+        return Mathf.Clamp(boost, 1f, 20f);
+    }
+
     public void SelectItem(SellableItemData item)
     {
         selectedItem = item;
         RefreshUI();
+        RefreshPromotionPanelUI();
     }
 
     public void RefreshUI()
@@ -176,6 +265,7 @@ public class SellManager : MonoBehaviour
         RefreshCenterUI();
         RefreshSummaryUI();
         RefreshLogUI();
+        RefreshSettlementPanelUI();
 
         if (sellItemListUI != null)
         {
@@ -200,12 +290,11 @@ public class SellManager : MonoBehaviour
 
             if (itemInfoText != null)
                 itemInfoText.text =
-                    "등급 : -\n" +
-                    "기본 가격 : -\n" +
-                    "타겟 고객층 : -\n" +
-                    "유행성 : -\n" +
-                    "재고 : -\n" +
-                    "남은 수명 : -";
+                "재고 : " + selectedItem.stock + "\n" +
+                "등급 : " + selectedItem.craftedItem.grade + "\n" +
+                "남은 유행 턴 : " + selectedItem.lifeTurns + "\n" +
+                "홍보 횟수 : " + selectedItem.promotionCount + "\n" +
+                "마지막 홍보 효과 : +" + selectedItem.lastPromotionBoost.ToString("F1");
 
             if (trendValueText != null)
                 trendValueText.text = "유행 지수 : -";
@@ -328,6 +417,80 @@ public class SellManager : MonoBehaviour
         RefreshUI();
     }
 
+    public void OnClickPromote()
+    {
+        if (selectedItem == null)
+        {
+            if (promotionPanelUI != null && promotionPanelUI.resultText != null)
+                promotionPanelUI.resultText.text = "홍보할 아이템을 먼저 선택하세요.";
+            return;
+        }
+
+        if (promotionPanelUI == null)
+            return;
+
+        if (promotionPanelUI.backgroundDropdown == null ||
+            promotionPanelUI.filterDropdown == null ||
+            promotionPanelUI.hashtagDropdown1 == null ||
+            promotionPanelUI.hashtagDropdown2 == null ||
+            promotionPanelUI.hashtagDropdown3 == null)
+        {
+            return;
+        }
+
+        string background =
+            promotionPanelUI.backgroundDropdown.options[promotionPanelUI.backgroundDropdown.value].text;
+
+        string filter =
+            promotionPanelUI.filterDropdown.options[promotionPanelUI.filterDropdown.value].text;
+
+        string tag1 =
+            promotionPanelUI.hashtagDropdown1.options[promotionPanelUI.hashtagDropdown1.value].text;
+
+        string tag2 =
+            promotionPanelUI.hashtagDropdown2.options[promotionPanelUI.hashtagDropdown2.value].text;
+
+        string tag3 =
+            promotionPanelUI.hashtagDropdown3.options[promotionPanelUI.hashtagDropdown3.value].text;
+
+        int promotionCost = 20;
+
+        if (currentGold < promotionCost)
+        {
+            if (promotionPanelUI.resultText != null)
+                promotionPanelUI.resultText.text = "골드가 부족해서 홍보할 수 없습니다.";
+            return;
+        }
+
+        float boost = CalculatePromotionBoost(background, filter, tag1, tag2, tag3);
+
+        selectedItem.trendValue += boost;
+        selectedItem.trendValue = Mathf.Clamp(selectedItem.trendValue, 0f, 100f);
+
+        selectedItem.promotionCount += 1;
+        selectedItem.lastPromotionBoost = boost;
+
+        currentGold -= promotionCost;
+        totalPromotionCost += promotionCost;
+
+        if (promotionPanelUI.resultText != null)
+        {
+           promotionPanelUI.resultText.text =
+                "홍보 성공!\n" +
+                "배경 : " + background + "\n" +
+                "필터 : " + filter + "\n" +
+                "해시태그 : #" + tag1 + " #" + tag2 + " #" + tag3 + "\n" +
+                "유행 지수 상승 : +" + boost.ToString("F1") + "\n" +
+                "홍보비 : -" + promotionCost + " G\n" +
+                "누적 홍보 횟수 : " + selectedItem.promotionCount;
+        }
+
+        AddLog("[홍보] " + selectedItem.craftedItem.itemName + " / 유행 지수 +" + boost.ToString("F1"));
+
+        RefreshUI();
+        RefreshPromotionPanelUI();
+    }
+
     void UpdateTrend(SellableItemData item)
     {
         item.lifeTurns -= 1;
@@ -376,8 +539,99 @@ public class SellManager : MonoBehaviour
             summaryText.text =
                 "총 판매 수익 : " + totalSales + " G" +
                 "   |   할인 판매 수익 : " + totalDiscountSales + " G" +
-                "   |   판매 개수 : " + totalSoldCount;
+                "   |   판매 개수 : " + totalSoldCount +
+                "   |   홍보비 : " + totalPromotionCost + " G";
         }
+    }
+
+    void RefreshPromotionPanelUI()
+    {
+        if (promotionPanelUI == null || promotionPanelUI.selectedItemText == null)
+            return;
+
+        if (selectedItem == null)
+        {
+            promotionPanelUI.selectedItemText.text = "선택 아이템: 없음";
+            return;
+        }
+
+        promotionPanelUI.selectedItemText.text = "선택 아이템: " + selectedItem.craftedItem.itemName;
+    }
+
+    void RefreshSettlementPanelUI()
+    {
+        if (settlementPanelUI == null)
+            return;
+
+        int totalRevenue = totalSales + totalDiscountSales;
+        int totalCost = materialCost + rentCost + manageCost + totalPromotionCost;
+        int netProfit = totalRevenue - totalCost;
+
+        if (settlementPanelUI.detailText != null)
+        {
+            settlementPanelUI.detailText.text =
+                "총매출: " + totalRevenue + " G\n" +
+                "재료비: " + materialCost + " G\n" +
+                "임대료: " + rentCost + " G\n" +
+                "홍보비: " + totalPromotionCost + " G\n" +
+                "관리비: " + manageCost + " G\n" +
+                "순이익: " + netProfit + " G";
+        }
+
+        int maxValue = Mathf.Max(totalRevenue, materialCost, rentCost, totalPromotionCost, manageCost, Mathf.Abs(netProfit), 1);
+
+        SetBarWidth(settlementPanelUI.salesBarFill, totalRevenue, maxValue);
+        SetBarWidth(settlementPanelUI.materialBarFill, materialCost, maxValue);
+        SetBarWidth(settlementPanelUI.rentBarFill, rentCost, maxValue);
+        SetBarWidth(settlementPanelUI.promotionBarFill, totalPromotionCost, maxValue);
+        SetBarWidth(settlementPanelUI.manageBarFill, manageCost, maxValue);
+        SetBarWidth(settlementPanelUI.profitBarFill, Mathf.Abs(netProfit), maxValue);
+
+        if (settlementPanelUI.salesBarLabel != null)
+            settlementPanelUI.salesBarLabel.text = "총매출  " + totalRevenue + " G";
+
+        if (settlementPanelUI.materialBarLabel != null)
+            settlementPanelUI.materialBarLabel.text = "재료비  " + materialCost + " G";
+
+        if (settlementPanelUI.rentBarLabel != null)
+            settlementPanelUI.rentBarLabel.text = "임대료  " + rentCost + " G";
+
+        if (settlementPanelUI.promotionBarLabel != null)
+            settlementPanelUI.promotionBarLabel.text = "홍보비  " + totalPromotionCost + " G";
+
+        if (settlementPanelUI.manageBarLabel != null)
+            settlementPanelUI.manageBarLabel.text = "관리비  " + manageCost + " G";
+
+            if (settlementPanelUI.profitBarLabel != null)
+            {
+            if (netProfit >= 0)
+                settlementPanelUI.profitBarLabel.text = "순이익  " + netProfit + " G";
+            else
+                settlementPanelUI.profitBarLabel.text = "순손실  " + netProfit + " G";
+        }
+        if (settlementPanelUI.profitBarFill != null)
+        {
+        Image profitImage = settlementPanelUI.profitBarFill.GetComponent<Image>();
+        if (profitImage != null)
+        {
+            if (netProfit >= 0)
+                profitImage.color = new Color(0.3f, 0.85f, 0.4f, 1f);
+            else
+                profitImage.color = new Color(0.9f, 0.3f, 0.3f, 1f);
+            }
+        }
+    }
+
+    void SetBarWidth(RectTransform barRect, int value, int maxValue)
+    {
+        if (barRect == null)
+            return;
+
+        float maxWidth = 260f;
+        float ratio = (float)value / maxValue;
+        ratio = Mathf.Clamp01(ratio);
+
+        barRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, maxWidth * ratio);
     }
 
     public void GoBackToCraftScene()
